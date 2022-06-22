@@ -16,7 +16,7 @@ OUTPUT_NAME=out.csv
 
 ## Input CSV file
 
-The output CSV file should have the following format:
+The input CSV file should have the following format:
 
 ```
 name,state,number,text
