@@ -1,6 +1,6 @@
-# Emergency messaging application
+# Emergency contact application
 
-This application takes in CSV file with the client name, state, mobile number, and text message, then sends the corresponding text message to all clients.
+This application takes in CSV file with the client name, state, mobile number, and text message, then sends the corresponding text message to all clients using the MailJet SMS API.
 
 The application will then print the number of successful and unsuccessful sends, and output a CSV file containing any rows that were unsuccessfully sent with its correpsonding error message.
 
