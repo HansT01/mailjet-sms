@@ -25,6 +25,8 @@ CLIENT_NAME,STATE,0466666666,TEXT_MESSAGE
 CLIENT_NAME,STATE,0466666666,TEXT_MESSAGE
 ```
 
+Although the name and state is not important, the data set must have a field for 'number' and a field for 'text'.
+
 ## Output CSV file
 
 The output CSV file should have the following format:

@@ -2,21 +2,21 @@ import csv
 import json
 import os
 from dotenv import load_dotenv
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import requests
 import phonenumbers
 import concurrent.futures
 
 
-def readCsv(filePath: str) -> List[Dict[str, str]]:
+def readCsv(filePath: str) -> Tuple[List[str], List[Dict[str, str]]]:
     """Reads a csv file from a given filePath and converts it into a List of Dictionaries.
 
     Args:
         filePath (str): Path to csv file to be read
 
     Returns:
-        List[Dict[str, str]]: List of dictionaries
+        Tuple[List[str], List[Dict[str, str]]]: List of CSV headers and row data as dictionaries
     """
 
     result = []
@@ -28,7 +28,7 @@ def readCsv(filePath: str) -> List[Dict[str, str]]:
             for i, val in enumerate(row):
                 rowdata[headers[i]] = val
             result += [rowdata]
-    return result
+    return (headers, result)
 
 
 def postSms(token: str, client: Dict[str, Any]) -> Dict[str, Any]:
@@ -88,7 +88,7 @@ def parseToE164(number: str) -> str:
     return phonenumbers.format_number(x, phonenumbers.PhoneNumberFormat.E164)
 
 
-def listToCSV(data: List[Dict[str, Any]], filename: str):
+def listToCSV(data: List[Dict[str, Any]], headers: List[str], filename: str):
     """Outputs a list of same dictionary items to a CSV file.
     This will not work properly for dictionary items that don't all have the same keys.
 
@@ -97,9 +97,8 @@ def listToCSV(data: List[Dict[str, Any]], filename: str):
         filename (str): Name of the output file
     """
 
-    keys = data[0].keys()
     with open(filename, "w", encoding="utf8", newline="") as output_file:
-        dict_writer = csv.DictWriter(output_file, keys)
+        dict_writer = csv.DictWriter(output_file, headers)
         dict_writer.writeheader()
         dict_writer.writerows(data)
 
@@ -111,7 +110,7 @@ def main():
     INPUT_NAME = os.getenv("INPUT_NAME")
     OUTPUT_NAME = os.getenv("OUTPUT_NAME")
 
-    clients = readCsv(INPUT_NAME)
+    headers, clients = readCsv(INPUT_NAME)
 
     out = []
     success = 0
@@ -135,7 +134,8 @@ def main():
                 success += 1
 
     print(f"Successes: {success}, Failures: {failure}")
-    listToCSV(out, OUTPUT_NAME)
+    headers += ["errorMessage"]
+    listToCSV(out, headers, OUTPUT_NAME)
 
 
 if __name__ == "__main__":
