@@ -1,7 +1,7 @@
 import csv
 import json
 import os
-from time import sleep
+from dotenv import load_dotenv
 from typing import Any, Dict, List
 
 import requests
@@ -105,6 +105,8 @@ def listToCSV(data: List[Dict[str, Any]], filename: str):
 
 
 def main():
+    load_dotenv()
+
     TOKEN = os.getenv("MJ_TOKEN")
     INPUT_NAME = os.getenv("INPUT_NAME")
     OUTPUT_NAME = os.getenv("OUTPUT_NAME")
