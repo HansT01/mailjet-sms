@@ -74,11 +74,13 @@ class ClientCollection:
 
     @staticmethod
     def getInstance():
+        """Gets the current instance of ClientCollection if it doesn't currently exist"""
         if not ClientCollection.instance:
             ClientCollection.instance = ClientCollection()
         return ClientCollection.instance
 
     def __init__(self):
+        """Constructor for the ClientCollection class. This method will store environment variables and load all clients."""
         load_dotenv()
 
         self.MAILJET_TOKEN = os.getenv("MAILJET_TOKEN")
@@ -86,7 +88,11 @@ class ClientCollection:
         self.INPUT_FILE = os.getenv("INPUT_FILE")
         self.OUTPUT_FILE = os.getenv("OUTPUT_FILE")
 
+        self.loadClients()
+
     def loadClients(self):
+        """Regenerates all Client objects from a list of dictionaries."""
+
         # Get headers and data from CSV file
         self.headers, dataRows = self.readCSV()
 
@@ -95,10 +101,7 @@ class ClientCollection:
             self.clientList += [Client(dataRow)]
 
     def readCSV(self) -> Tuple[List[str], List[Dict[str, str]]]:
-        """Reads a csv file from a given filePath and converts it into a List of Dictionaries.
-
-        Args:
-            filePath (str): Path to csv file to be read
+        """Reads a csv file from the INPUT_FILE field and converts it into a list of dictionaries.
 
         Returns:
             Tuple[List[str], List[Dict[str, str]]]: List of CSV headers and row data as dictionaries
@@ -120,6 +123,9 @@ class ClientCollection:
         return headers, dataRows
 
     def postAllSMS(self):
+        """Runs the postSMS method for all clients in ClientCollections,
+        then prints out the number of successes and failures, and writes out all failed SMS posts to a CSV file.
+        """
         out = []
         success = 0
         failure = 0
@@ -145,18 +151,14 @@ class ClientCollection:
                     success += 1
 
         print(f"Successes: {success}, Failures: {failure}")
-
-        # Add headers error column
         self.writeCSV(out)
 
     def writeCSV(self, data: List[Dict[str, Any]]):
-        """Outputs a list of same dictionary items to a CSV file.
+        """Outputs a list of same dictionary items to a CSV file designated by the OUTPUT_FILE field.
         This will not work properly for dictionary items that don't all have the same keys.
 
         Args:
             data (List[Dict[str, Any]]): List of dictionaries
-            headers (List[str]): Headers for the dictionaries
-            fileName (str): Name of the output file
         """
 
         with open(self.OUTPUT_FILE, "w", encoding="utf8", newline="") as out:
