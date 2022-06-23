@@ -9,143 +9,163 @@ import phonenumbers
 import concurrent.futures
 
 
-def readCSV(fileName: str) -> Tuple[List[str], List[Dict[str, str]]]:
-    """Reads a csv file from a given filePath and converts it into a List of Dictionaries.
+class Client:
+    def __init__(self, fields: Dict[str, str]):
+        self.fields = fields
 
-    Args:
-        filePath (str): Path to csv file to be read
+    def postSMS(self, token: str, sender: str) -> Dict[str, Any]:
+        """Sends an sms from a client dictionary object using using MailJet with the input token.
 
-    Returns:
-        Tuple[List[str], List[Dict[str, str]]]: List of CSV headers and row data as dictionaries
-    """
+        Args:
+            token (str): Token string
+            client (Dict[str, Any]): Client dictionary object with "number" and "text" fields
 
-    result = []
-    with open(fileName, mode="r") as csvfile:
-        reader = csv.reader(csvfile)
-        headers = next(reader)
-        for row in reader:
-            rowdata = {}
-            for i, header in enumerate(headers):
-                try:
-                    rowdata[header] = row[i]
-                except:
-                    rowdata[header] = ""
-            result += [rowdata]
-    return (headers, result)
+        Returns:
+            Dict[str, Any]: "error" boolean field, "errorMessage" string field, and the original "fields" dictionary
+        """
 
+        # Based off of the API documentation on
+        # https://dev.mailjet.com/sms/guides/send-sms-api/
 
-def postSMS(token: str, client: Dict[str, Any], sender: str) -> Dict[str, Any]:
-    """Sends an sms from a client dictionary object using using MailJet with the input token.
+        error = False
+        errorMessage = ""
 
-    Args:
-        token (str): Token string
-        client (Dict[str, Any]): Client dictionary object with "number" and "text" fields
+        try:
+            url = "https://api.mailjet.com/v4/sms-send"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-type": "application/json",
+            }
+            body = {
+                "Text": self.fields["text"],
+                "To": Client.parseToE164(self.fields["number"]),
+                "From": sender,
+            }
 
-    Returns:
-        Dict[str, Any]: "error" boolean field, "errorMessage" string field, and the original "client" dictionary
-    """
+            x = requests.post(url, json=body, headers=headers, timeout=5)
+            res = json.loads(x.text)
 
-    # Based off of the API documentation on
-    # https://dev.mailjet.com/sms/guides/send-sms-api/
+            # TODO this condition should be changed to actually reflect a failing response
+            if "StatusCode" in res:
+                raise Exception(res["ErrorMessage"])
+        except Exception as e:
+            error = True
+            errorMessage = str(e)
 
-    error = False
-    errorMessage = ""
+        return {"error": error, "errorMessage": errorMessage, "client": self.fields}
 
-    try:
-        url = "https://api.mailjet.com/v4/sms-send"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-type": "application/json",
-        }
-        body = {
-            "Text": client["text"],
-            "To": parseToE164(client["number"]),
-            "From": sender,
-        }
+    @staticmethod
+    def parseToE164(number: str) -> str:
+        """Parses a phone number string to comply with the E.164 international telephone numbering standard.
 
-        x = requests.post(url, json=body, headers=headers, timeout=5)
-        res = json.loads(x.text)
+        Args:
+            number (str): Input phone number string
 
-        # TODO this condition should be changed to actually reflect a failing response
-        if "StatusCode" in res:
-            raise Exception(res["ErrorMessage"])
-    except Exception as e:
-        error = True
-        errorMessage = str(e)
+        Returns:
+            str: Phone number in E.164 numbering standard
+        """
 
-    return {"error": error, "errorMessage": errorMessage, "client": client}
+        x = phonenumbers.parse(number, "AU")
+        return phonenumbers.format_number(x, phonenumbers.PhoneNumberFormat.E164)
 
 
-def parseToE164(number: str) -> str:
-    """Parses a phone number string to comply with the E.164 international telephone numbering standard.
+class ClientCollection:
+    instance = None
 
-    Args:
-        number (str): Input phone number string
+    @staticmethod
+    def getInstance():
+        if not ClientCollection.instance:
+            ClientCollection.instance = ClientCollection()
+        return ClientCollection.instance
 
-    Returns:
-        str: Phone number in E.164 numbering standard
-    """
+    def __init__(self):
+        load_dotenv()
 
-    x = phonenumbers.parse(number, "AU")
-    return phonenumbers.format_number(x, phonenumbers.PhoneNumberFormat.E164)
+        self.MAILJET_TOKEN = os.getenv("MAILJET_TOKEN")
+        self.SENDER_NAME = os.getenv("SENDER_NAME")
+        self.INPUT_FILE = os.getenv("INPUT_FILE")
+        self.OUTPUT_FILE = os.getenv("OUTPUT_FILE")
 
+    def loadClients(self):
+        # Get headers and data from CSV file
+        self.headers, dataRows = self.readCSV()
 
-def listToCSV(data: List[Dict[str, Any]], headers: List[str], fileName: str):
-    """Outputs a list of same dictionary items to a CSV file.
-    This will not work properly for dictionary items that don't all have the same keys.
+        self.clientList: List[Client] = []
+        for dataRow in dataRows:
+            self.clientList += [Client(dataRow)]
 
-    Args:
-        data (List[Dict[str, Any]]): List of dictionaries
-        headers (List[str]): Headers for the dictionaries
-        fileName (str): Name of the output file
-    """
+    def readCSV(self) -> Tuple[List[str], List[Dict[str, str]]]:
+        """Reads a csv file from a given filePath and converts it into a List of Dictionaries.
 
-    with open(fileName, "w", encoding="utf8", newline="") as out:
-        dw = csv.DictWriter(out, headers)
-        dw.writeheader()
-        dw.writerows(data)
+        Args:
+            filePath (str): Path to csv file to be read
 
+        Returns:
+            Tuple[List[str], List[Dict[str, str]]]: List of CSV headers and row data as dictionaries
+        """
 
-def main():
-    load_dotenv()
+        dataRows = []
+        with open(self.INPUT_FILE, mode="r") as csvfile:
+            reader = csv.reader(csvfile)
+            headers = next(reader)
+            for row in reader:
+                dataRow = {}
+                for i, header in enumerate(headers):
+                    try:
+                        dataRow[header] = row[i]
+                    except:
+                        dataRow[header] = ""
+                dataRows += [dataRow]
 
-    MAILJET_TOKEN = os.getenv("MAILJET_TOKEN")
-    SENDER_NAME = os.getenv("SENDER_NAME")
-    INPUT_FILE = os.getenv("INPUT_FILE")
-    OUTPUT_FILE = os.getenv("OUTPUT_FILE")
+        return headers, dataRows
 
-    headers, clients = readCSV(INPUT_FILE)
+    def postAllSMS(self):
+        out = []
+        success = 0
+        failure = 0
 
-    out = []
-    success = 0
-    failure = 0
+        # https://stackoverflow.com/questions/2632520/what-is-the-fastest-way-to-send-100-000-http-requests-in-python
+        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+            # Create collection of futures
+            fs = (
+                executor.submit(client.postSMS, self.MAILJET_TOKEN, self.SENDER_NAME)
+                for client in self.clientList
+            )
 
-    # https://stackoverflow.com/questions/2632520/what-is-the-fastest-way-to-send-100-000-http-requests-in-python
-    with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
-        # Create collection of futures
-        fs = (
-            executor.submit(postSMS, MAILJET_TOKEN, client, SENDER_NAME)
-            for client in clients
-        )
+            # Iterate through futures
+            for f in concurrent.futures.as_completed(fs):
+                clientDict = f.result()["client"]
 
-        # Iterate through futures
-        for f in concurrent.futures.as_completed(fs):
-            client = f.result()["client"]
+                # If the request failed
+                if f.result()["error"]:
+                    failure += 1
+                    clientDict["errorMessage"] = f.result()["errorMessage"]
+                    out += [clientDict]
+                else:
+                    success += 1
 
-            # If the request failed
-            if f.result()["error"]:
-                failure += 1
-                client["errorMessage"] = f.result()["errorMessage"]
-                out += [client]
-            else:
-                success += 1
+        print(f"Successes: {success}, Failures: {failure}")
 
-    print(f"Successes: {success}, Failures: {failure}")
+        # Add headers error column
+        self.writeCSV(out)
 
-    # Add headers error column
-    headers += ["errorMessage"]
-    listToCSV(out, headers, OUTPUT_FILE)
+    def writeCSV(self, data: List[Dict[str, Any]]):
+        """Outputs a list of same dictionary items to a CSV file.
+        This will not work properly for dictionary items that don't all have the same keys.
+
+        Args:
+            data (List[Dict[str, Any]]): List of dictionaries
+            headers (List[str]): Headers for the dictionaries
+            fileName (str): Name of the output file
+        """
+
+        with open(self.OUTPUT_FILE, "w", encoding="utf8", newline="") as out:
+            dw = csv.DictWriter(out, self.headers + ["errorMessage"])
+            dw.writeheader()
+            dw.writerows(data)
 
 
 if __name__ == "__main__":
-    main()
+    cc = ClientCollection.getInstance()
+    cc.loadClients()
+    cc.postAllSMS()
