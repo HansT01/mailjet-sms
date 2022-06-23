@@ -9,7 +9,7 @@ import phonenumbers
 import concurrent.futures
 
 
-def readCsv(filePath: str) -> Tuple[List[str], List[Dict[str, str]]]:
+def readCSV(fileName: str) -> Tuple[List[str], List[Dict[str, str]]]:
     """Reads a csv file from a given filePath and converts it into a List of Dictionaries.
 
     Args:
@@ -20,18 +20,21 @@ def readCsv(filePath: str) -> Tuple[List[str], List[Dict[str, str]]]:
     """
 
     result = []
-    with open(filePath, mode="r") as csvfile:
+    with open(fileName, mode="r") as csvfile:
         reader = csv.reader(csvfile)
         headers = next(reader)
         for row in reader:
             rowdata = {}
-            for i, val in enumerate(row):
-                rowdata[headers[i]] = val
+            for i, header in enumerate(headers):
+                try:
+                    rowdata[header] = row[i]
+                except:
+                    rowdata[header] = ""
             result += [rowdata]
     return (headers, result)
 
 
-def postSms(token: str, client: Dict[str, Any]) -> Dict[str, Any]:
+def postSMS(token: str, client: Dict[str, Any], sender: str) -> Dict[str, Any]:
     """Sends an sms from a client dictionary object using using MailJet with the input token.
 
     Args:
@@ -57,7 +60,7 @@ def postSms(token: str, client: Dict[str, Any]) -> Dict[str, Any]:
         body = {
             "Text": client["text"],
             "To": parseToE164(client["number"]),
-            "From": "iCSMS",
+            "From": sender,
         }
 
         x = requests.post(url, json=body, headers=headers, timeout=5)
@@ -65,8 +68,7 @@ def postSms(token: str, client: Dict[str, Any]) -> Dict[str, Any]:
 
         # TODO this condition should be changed to actually reflect a failing response
         if "StatusCode" in res:
-            error = True
-            errorMessage = res["ErrorMessage"]
+            raise Exception(res["ErrorMessage"])
     except Exception as e:
         error = True
         errorMessage = str(e)
@@ -88,29 +90,31 @@ def parseToE164(number: str) -> str:
     return phonenumbers.format_number(x, phonenumbers.PhoneNumberFormat.E164)
 
 
-def listToCSV(data: List[Dict[str, Any]], headers: List[str], filename: str):
+def listToCSV(data: List[Dict[str, Any]], headers: List[str], fileName: str):
     """Outputs a list of same dictionary items to a CSV file.
     This will not work properly for dictionary items that don't all have the same keys.
 
     Args:
         data (List[Dict[str, Any]]): List of dictionaries
-        filename (str): Name of the output file
+        headers (List[str]): Headers for the dictionaries
+        fileName (str): Name of the output file
     """
 
-    with open(filename, "w", encoding="utf8", newline="") as output_file:
-        dict_writer = csv.DictWriter(output_file, headers)
-        dict_writer.writeheader()
-        dict_writer.writerows(data)
+    with open(fileName, "w", encoding="utf8", newline="") as out:
+        dw = csv.DictWriter(out, headers)
+        dw.writeheader()
+        dw.writerows(data)
 
 
 def main():
     load_dotenv()
 
-    TOKEN = os.getenv("MJ_TOKEN")
-    INPUT_NAME = os.getenv("INPUT_NAME")
-    OUTPUT_NAME = os.getenv("OUTPUT_NAME")
+    MAILJET_TOKEN = os.getenv("MAILJET_TOKEN")
+    SENDER_NAME = os.getenv("SENDER_NAME")
+    INPUT_FILE = os.getenv("INPUT_FILE")
+    OUTPUT_FILE = os.getenv("OUTPUT_FILE")
 
-    headers, clients = readCsv(INPUT_NAME)
+    headers, clients = readCSV(INPUT_FILE)
 
     out = []
     success = 0
@@ -119,7 +123,10 @@ def main():
     # https://stackoverflow.com/questions/2632520/what-is-the-fastest-way-to-send-100-000-http-requests-in-python
     with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
         # Create collection of futures
-        fs = (executor.submit(postSms, TOKEN, client) for client in clients)
+        fs = (
+            executor.submit(postSMS, MAILJET_TOKEN, client, SENDER_NAME)
+            for client in clients
+        )
 
         # Iterate through futures
         for f in concurrent.futures.as_completed(fs):
@@ -134,8 +141,10 @@ def main():
                 success += 1
 
     print(f"Successes: {success}, Failures: {failure}")
+
+    # Add headers error column
     headers += ["errorMessage"]
-    listToCSV(out, headers, OUTPUT_NAME)
+    listToCSV(out, headers, OUTPUT_FILE)
 
 
 if __name__ == "__main__":
