@@ -80,15 +80,13 @@ class ClientCollection:
         return ClientCollection.instance
 
     def __init__(self):
-        """Constructor for the ClientCollection class. This method will store environment variables and load all clients."""
+        """Constructor for the ClientCollection class. This method will load all environment variables."""
         load_dotenv()
 
         self.MAILJET_TOKEN = os.getenv("MAILJET_TOKEN")
         self.SENDER_NAME = os.getenv("SENDER_NAME")
         self.INPUT_FILE = os.getenv("INPUT_FILE")
         self.OUTPUT_FILE = os.getenv("OUTPUT_FILE")
-
-        self.loadClients()
 
     def loadClients(self):
         """Regenerates all Client objects from a list of dictionaries."""
