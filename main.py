@@ -11,18 +11,11 @@ import concurrent.futures
 
 class Client:
     def __init__(self, fields: Dict[str, str]):
+        """Initializes Client object with fields dictionary."""
         self.fields = fields
 
     def postSMS(self, token: str, sender: str) -> Dict[str, Any]:
-        """Sends an sms from a client dictionary object using using MailJet with the input token.
-
-        Args:
-            token (str): Token string
-            client (Dict[str, Any]): Client dictionary object with "number" and "text" fields
-
-        Returns:
-            Dict[str, Any]: "error" boolean field, "errorMessage" string field, and the original "fields" dictionary
-        """
+        """Sends an sms from a client dictionary object using using MailJet with the input token and sender name."""
 
         # Based off of the API documentation on
         # https://dev.mailjet.com/sms/guides/send-sms-api/
@@ -56,14 +49,7 @@ class Client:
 
     @staticmethod
     def parseToE164(number: str) -> str:
-        """Parses a phone number string to comply with the E.164 international telephone numbering standard.
-
-        Args:
-            number (str): Input phone number string
-
-        Returns:
-            str: Phone number in E.164 numbering standard
-        """
+        """Parses a phone number string to comply with the E.164 international telephone numbering standard."""
 
         x = phonenumbers.parse(number, "AU")
         return phonenumbers.format_number(x, phonenumbers.PhoneNumberFormat.E164)
@@ -74,7 +60,7 @@ class ClientCollection:
 
     @staticmethod
     def getInstance():
-        """Gets the current instance of ClientCollection if it doesn't currently exist"""
+        """Gets the current instance of ClientCollection if it doesn't currently exist."""
         if not ClientCollection.instance:
             ClientCollection.instance = ClientCollection()
         return ClientCollection.instance
@@ -99,11 +85,7 @@ class ClientCollection:
             self.clientList += [Client(dataRow)]
 
     def readCSV(self) -> Tuple[List[str], List[Dict[str, str]]]:
-        """Reads a csv file from the INPUT_FILE field and converts it into a list of dictionaries.
-
-        Returns:
-            Tuple[List[str], List[Dict[str, str]]]: List of CSV headers and row data as dictionaries
-        """
+        """Reads a csv file from the INPUT_FILE field and converts it into a list of dictionaries."""
 
         dataRows = []
         with open(self.INPUT_FILE, mode="r") as csvfile:
@@ -121,9 +103,8 @@ class ClientCollection:
         return headers, dataRows
 
     def postAllSMS(self):
-        """Runs the postSMS method for all clients in ClientCollections,
-        then prints out the number of successes and failures, and writes out all failed SMS posts to a CSV file.
-        """
+        """Runs the postSMS method for all clients in ClientCollections, then prints out the number of
+        successes and failures, and writes out all failed SMS posts to a CSV file."""
         out = []
         success = 0
         failure = 0
@@ -131,10 +112,7 @@ class ClientCollection:
         # https://stackoverflow.com/questions/2632520/what-is-the-fastest-way-to-send-100-000-http-requests-in-python
         with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
             # Create collection of futures
-            fs = (
-                executor.submit(client.postSMS, self.MAILJET_TOKEN, self.SENDER_NAME)
-                for client in self.clientList
-            )
+            fs = (executor.submit(client.postSMS, self.MAILJET_TOKEN, self.SENDER_NAME) for client in self.clientList)
 
             # Iterate through futures
             for f in concurrent.futures.as_completed(fs):
@@ -151,18 +129,14 @@ class ClientCollection:
         print(f"Successes: {success}, Failures: {failure}")
         self.writeCSV(out)
 
-    def writeCSV(self, data: List[Dict[str, Any]]):
+    def writeCSV(self, rows: List[Dict[str, Any]]):
         """Outputs a list of same dictionary items to a CSV file designated by the OUTPUT_FILE field.
-        This will not work properly for dictionary items that don't all have the same keys.
-
-        Args:
-            data (List[Dict[str, Any]]): List of dictionaries
-        """
+        The rows object must be a list of dictionaries with the same keys as the headers."""
 
         with open(self.OUTPUT_FILE, "w", encoding="utf8", newline="") as out:
             dw = csv.DictWriter(out, self.headers + ["errorMessage"])
             dw.writeheader()
-            dw.writerows(data)
+            dw.writerows(rows)
 
 
 if __name__ == "__main__":
