@@ -15,6 +15,14 @@ INPUT_FILE="in.csv"
 OUTPUT_FILE="out.csv"
 ```
 
+## Sending SMS
+
+Once the input csv file and environment variables are setup, run:
+
+```
+python main.py
+```
+
 ## Input CSV file
 
 The input CSV file might have the following format:
